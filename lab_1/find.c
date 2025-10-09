@@ -217,7 +217,8 @@ void file_walker(char* cale_cur, int level, Optiuni a) {
     }
 
     struct dirent* entry;
-    struct stat info;
+    char** list = NULL;
+    int count = 0;
 
     while((entry = readdir(dir)) != NULL) {
         if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
