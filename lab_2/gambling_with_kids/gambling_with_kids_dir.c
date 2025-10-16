@@ -88,7 +88,7 @@ void child_stuff() {
 }
 
 void parent_stuff(pid_t pid) {
-    sleep(1);
+    //sleep(1);
     FILE* gambling = fopen("message.txt", "w");
     if (!gambling) {
         perror("fopen(parent)");
