@@ -1,10 +1,7 @@
 *
-!*/
-
-tema_1/server.c
 tema_1/client.c
+tema_1/server.c
 
-!lab_*/**/*.c
 !*.c
-
 !.gitignore
+!*/
