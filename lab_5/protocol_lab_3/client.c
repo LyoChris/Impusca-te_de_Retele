@@ -98,5 +98,12 @@ int main(int argc, char* argv[]){
         }
 
         printf("%s\n", payload);
+
+        if(strcmp(payload, "exit") == 0) {
+            printf("[CLIENT] Inchidem clientul...\n");
+            free(payload);
+            free(line);
+            break;
+        }
     }
 }

@@ -23,7 +23,7 @@
 #include <poll.h>
 #include <netinet/in.h>
 
-#define PORT 4088
+#define PORT 4087
 
 typedef struct {
     char username[64];
@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
         }
 
         for(int i = 0; i < nfd; i++) {
-            if(!(poll_fds[i].events & POLLIN)) continue;
+            if(!(poll_fds[i].revents & POLLIN)) continue;
 
             if(poll_fds[i].fd == sock) {
                 int client;
@@ -147,10 +147,12 @@ int main(int argc, char* argv[]) {
                 }
 
                 char* command= malloc(request_size);
+                char arg[64] = {0};
                 int pid;
-                sscanf(request, "%d|%s", &pid, command);
+                sscanf(request, "%d|%s %s", &pid, command, arg);
+                command[strlen(command)] = '\0';
 
-                printf("%s, %d\n", command, pid);
+                printf("%s, %d, %s\n", command, pid, arg);
                 User_sessions* s = make_or_find_session(pid);
 
                 if(s == NULL) {
@@ -158,8 +160,85 @@ int main(int argc, char* argv[]) {
                     continue;
                 }
 
-                if(strncmp(request, "login", 5) == 0) {
-                    
+                if(strncmp(command, "login", 5) == 0) {
+                    if(s->username[0] != '\0') {
+                        write_payload("Already logged in", poll_fds[i].fd);
+                    } else {
+                        FILE* file;
+                        file = fopen("/etc/passwd", "r");
+                        if(file == NULL) {
+                            write_payload("Internal server error", poll_fds[i].fd);
+                            free(command);
+                            free(request);
+                            continue;
+                        }
+                        else {
+                            char line[256];
+                            bool found = false;
+                            while(fgets(line, sizeof(line), file)) {
+                                char file_username[64];
+                                sscanf(line, "%63[^:]", file_username);
+                                if(strcmp(file_username, arg) == 0) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            fclose(file);
+
+                            if(!found) {
+                                write_payload("Invalid username", poll_fds[i].fd);
+                            } else {
+                                strncpy(s->username, arg, sizeof(s->username) - 1);
+                                s->username[sizeof(s->username) - 1] = '\0';
+                                write_payload("Login successful", poll_fds[i].fd);
+                            }
+                        }
+                    }
+                }
+                else if(strncmp(command, "cd", 2) == 0) {
+                    if(s->username[0] == '\0') {
+                        write_payload("Please login first", poll_fds[i].fd);
+                    } else {
+                        if(chdir(arg) == -1) {
+                            write_payload("chdir failed", poll_fds[i].fd);
+                        } else {
+                            write_payload("Directory changed", poll_fds[i].fd);
+                        }
+                    }
+                }
+                else if(strncmp(command, "ls", 2) == 0) {
+                    if(s->username[0] == '\0') {
+                        write_payload("Please login first", poll_fds[i].fd);
+                    } else {
+                        DIR* dir;
+                        struct dirent* entry;
+                        char buffer[1024] = {0};
+
+                        dir = opendir(".");
+                        if(dir == NULL) {
+                            write_payload("opendir failed", poll_fds[i].fd);
+                        } else {
+                            while((entry = readdir(dir)) != NULL) {
+                                if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                                    continue;
+                                }
+                                strcat(buffer, entry->d_name);
+                                strcat(buffer, "\n");
+                            }
+                            closedir(dir);
+                            write_payload(buffer, poll_fds[i].fd);
+                        }
+                    }
+                }
+                else if(strncmp(command, "quit", 4) == 0) {
+                    write_payload("exit", poll_fds[i].fd);
+                    close(poll_fds[i].fd);
+                    poll_fds[i] = poll_fds[nfd - 1];
+                    nfd--;
+                    i--;
+                }
+                else {
+                    write_payload("Unknown command", poll_fds[i].fd);
                 }
             }
         }
